@@ -90,3 +90,33 @@ jobs:
       - if: matrix.version != env.defaultVersion
         name: Run tests for non-default node version
         run: yarn bazel test --test_tag_filters=node18,-node18-broken //packages/...
+
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      snapshot: ${{ github.event_name == 'push' && github.ref_name == 'main'}}
+    strategy:
+      matrix:
+        version: [16, 18]
+        subset: ['npm', 'esbuild', 'yarn']
+        #shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - name: Initialize environment
+        uses: angular/dev-infra/github-actions/npm/checkout-and-setup-node@0109d498b0f6aae418ed4924a5e5c65695f0ac61
+        with:
+          node-version: ${{ matrix.version }}
+      - name: Setup Bazel
+        uses: angular/dev-infra/github-actions/bazel/setup@0109d498b0f6aae418ed4924a5e5c65695f0ac61
+      - name: Setup Bazel RBE
+        uses: angular/dev-infra/github-actions/bazel/configure-remote@0109d498b0f6aae418ed4924a5e5c65695f0ac61
+      - name: Install node modules
+        run: yarn install --frozen-lockfile
+      - name: Setup ramdisk e2e temp directory
+        run: mkdir -p /tmp/e2e_temp
+      - name: Execute CLI E2E Tests for ${{ matrix.subset }} using Node${{ matrix.version}}
+        run: |
+          yarn bazel test \
+            --define=E2E_TEMP=/tmp/e2e_temp \
+            --config=e2e \
+            //tests/legacy-cli:e2e.${{env.snapshot == 'true' && 'snapshots.' || ''}}${{matrix.subset}}_node${{matrix.version}}
+            # Don't run snapshot E2E's unless it's on the main branch
