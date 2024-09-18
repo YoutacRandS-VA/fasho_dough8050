@@ -1,0 +1,83 @@
+{
+  // These tasks will run in order when initializing your CodeSandbox project.
+  "setupTasks": [
+    {
+      "name": "Install Dependencies",
+      "command": "yarn install"
+    }
+  ],
+
+  // These tasks can be run from CodeSandbox. Running one will open a log in the app.
+  "tasks": {
+    "admin": {
+      "name": "admin",
+      "command": "yarn admin",
+      "runAtStart": false
+    },
+    "test": {
+      "name": "test",
+      "command": "yarn test",
+      "runAtStart": false
+    },
+    "build": {
+      "name": "build",
+      "command": "yarn build",
+      "runAtStart": false
+    },
+    "lint": {
+      "name": "lint",
+      "command": "yarn lint",
+      "runAtStart": false
+    },
+    "templates": {
+      "name": "templates",
+      "command": "yarn templates",
+      "runAtStart": false
+    },
+    "validate": {
+      "name": "validate",
+      "command": "yarn validate",
+      "runAtStart": false
+    },
+    "postinstall": {
+      "name": "postinstall",
+      "command": "yarn postinstall",
+      "runAtStart": false
+    },
+    "//webdriver-update-README": {
+      "name": "//webdriver-update-README",
+      "command": "yarn //webdriver-update-README",
+      "runAtStart": true
+    },
+    "webdriver-update": {
+      "name": "webdriver-update",
+      "command": "yarn webdriver-update",
+      "runAtStart": false
+    },
+    "public-api:check": {
+      "name": "public-api:check",
+      "command": "yarn public-api:check",
+      "runAtStart": false
+    },
+    "ng-dev": {
+      "name": "ng-dev",
+      "command": "yarn ng-dev",
+      "runAtStart": false
+    },
+    "public-api:update": {
+      "name": "public-api:update",
+      "command": "yarn public-api:update",
+      "runAtStart": false
+    },
+    "ts-circular-deps": {
+      "name": "ts-circular-deps",
+      "command": "yarn ts-circular-deps",
+      "runAtStart": false
+    },
+    "check-tooling-setup": {
+      "name": "check-tooling-setup",
+      "command": "yarn check-tooling-setup",
+      "runAtStart": false
+    }
+  }
+}
