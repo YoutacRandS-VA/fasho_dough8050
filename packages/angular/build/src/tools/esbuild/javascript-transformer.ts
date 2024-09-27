@@ -8,7 +8,7 @@
 
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import Piscina from 'piscina';
+import { WorkerPool } from '../../utils/worker-pool';
 import { Cache } from './cache';
 
 /**
@@ -29,7 +29,7 @@ export interface JavaScriptTransformerOptions {
  * and advanced optimizations.
  */
 export class JavaScriptTransformer {
-  #workerPool: Piscina | undefined;
+  #workerPool: WorkerPool | undefined;
   #commonOptions: Required<JavaScriptTransformerOptions>;
   #fileCacheKeyBase: Uint8Array;
 
@@ -54,14 +54,10 @@ export class JavaScriptTransformer {
     this.#fileCacheKeyBase = Buffer.from(JSON.stringify(this.#commonOptions), 'utf-8');
   }
 
-  #ensureWorkerPool(): Piscina {
-    this.#workerPool ??= new Piscina({
+  #ensureWorkerPool(): WorkerPool {
+    this.#workerPool ??= new WorkerPool({
       filename: require.resolve('./javascript-transformer-worker'),
-      minThreads: 1,
       maxThreads: this.maxThreads,
-      // Shutdown idle threads after 1 second of inactivity
-      idleTimeout: 1000,
-      recordTiming: false,
     });
 
     return this.#workerPool;
@@ -79,6 +75,7 @@ export class JavaScriptTransformer {
     filename: string,
     skipLinker?: boolean,
     sideEffects?: boolean,
+    instrumentForCoverage?: boolean,
   ): Promise<Uint8Array> {
     const data = await readFile(filename);
 
@@ -109,6 +106,7 @@ export class JavaScriptTransformer {
           data,
           skipLinker,
           sideEffects,
+          instrumentForCoverage,
           ...this.#commonOptions,
         },
         {
@@ -145,10 +143,11 @@ export class JavaScriptTransformer {
     data: string,
     skipLinker: boolean,
     sideEffects?: boolean,
+    instrumentForCoverage?: boolean,
   ): Promise<Uint8Array> {
     // Perform a quick test to determine if the data needs any transformations.
     // This allows directly returning the data without the worker communication overhead.
-    if (skipLinker && !this.#commonOptions.advancedOptimizations) {
+    if (skipLinker && !this.#commonOptions.advancedOptimizations && !instrumentForCoverage) {
       const keepSourcemap =
         this.#commonOptions.sourcemap &&
         (!!this.#commonOptions.thirdPartySourcemaps || !/[\\/]node_modules[\\/]/.test(filename));
@@ -164,6 +163,7 @@ export class JavaScriptTransformer {
       data,
       skipLinker,
       sideEffects,
+      instrumentForCoverage,
       ...this.#commonOptions,
     });
   }

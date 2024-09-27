@@ -6,7 +6,7 @@
  * found in the LICENSE file at https://angular.dev/license
  */
 
-import { StaticProvider, ɵresetCompiledComponents } from '@angular/core';
+import { LOCALE_ID, StaticProvider, ɵresetCompiledComponents } from '@angular/core';
 import { ServerAssets } from './assets';
 import { Hooks } from './hooks';
 import { getAngularAppManifest } from './manifest';
@@ -172,49 +172,64 @@ export class AngularServerApp {
       // Initialize the response with status and headers if available.
       responseInit = {
         status,
-        headers: headers ? new Headers(headers) : undefined,
+        headers: new Headers({
+          'Content-Type': 'text/html;charset=UTF-8',
+          ...headers,
+        }),
       };
 
-      if (renderMode === RenderMode.Client) {
+      if (renderMode === RenderMode.Server) {
+        // Configure platform providers for request and response only for SSR.
+        platformProviders.push(
+          {
+            provide: REQUEST,
+            useValue: request,
+          },
+          {
+            provide: REQUEST_CONTEXT,
+            useValue: requestContext,
+          },
+          {
+            provide: RESPONSE_INIT,
+            useValue: responseInit,
+          },
+        );
+      } else if (renderMode === RenderMode.Client) {
         // Serve the client-side rendered version if the route is configured for CSR.
         return new Response(await this.assets.getServerAsset('index.csr.html'), responseInit);
       }
-
-      platformProviders.push(
-        {
-          provide: REQUEST,
-          useValue: request,
-        },
-        {
-          provide: REQUEST_CONTEXT,
-          useValue: requestContext,
-        },
-        {
-          provide: RESPONSE_INIT,
-          useValue: responseInit,
-        },
-      );
     }
 
-    const { manifest, hooks, assets } = this;
+    const {
+      manifest: { bootstrap, inlineCriticalCss, locale },
+      hooks,
+      assets,
+    } = this;
+
+    if (locale !== undefined) {
+      platformProviders.push({
+        provide: LOCALE_ID,
+        useValue: locale,
+      });
+    }
 
     let html = await assets.getIndexServerHtml();
     // Skip extra microtask if there are no pre hooks.
     if (hooks.has('html:transform:pre')) {
-      html = await hooks.run('html:transform:pre', { html });
+      html = await hooks.run('html:transform:pre', { html, url });
     }
 
-    this.boostrap ??= await manifest.bootstrap();
+    this.boostrap ??= await bootstrap();
 
     html = await renderAngular(
       html,
       this.boostrap,
-      new URL(request.url),
+      url,
       platformProviders,
       SERVER_CONTEXT_VALUE[renderMode],
     );
 
-    if (manifest.inlineCriticalCss) {
+    if (inlineCriticalCss) {
       // Optionally inline critical CSS.
       this.inlineCriticalCssProcessor ??= new InlineCriticalCssProcessor((path: string) => {
         const fileName = path.split('/').pop() ?? path;

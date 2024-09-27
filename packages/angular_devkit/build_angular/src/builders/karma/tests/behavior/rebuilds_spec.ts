@@ -8,10 +8,20 @@
 
 import { concatMap, count, debounceTime, take, timeout } from 'rxjs';
 import { execute } from '../../index';
-import { BASE_OPTIONS, KARMA_BUILDER_INFO, describeBuilder } from '../setup';
+import { BASE_OPTIONS, KARMA_BUILDER_INFO, describeKarmaBuilder } from '../setup';
 
-describeBuilder(execute, KARMA_BUILDER_INFO, (harness) => {
+describeKarmaBuilder(execute, KARMA_BUILDER_INFO, (harness, setupTarget, isApplicationBuilder) => {
   describe('Behavior: "Rebuilds"', () => {
+    if (isApplicationBuilder) {
+      beforeEach(() => {
+        pending('--watch not implemented yet for application builder');
+      });
+    }
+
+    beforeEach(async () => {
+      await setupTarget(harness);
+    });
+
     it('recovers from compilation failures in watch mode', async () => {
       harness.useTarget('test', {
         ...BASE_OPTIONS,

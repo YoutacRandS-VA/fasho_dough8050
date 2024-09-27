@@ -12,8 +12,6 @@ import type { Connect, ViteDevServer } from 'vite';
 import { loadEsmModule } from '../../../utils/load-esm';
 import { AngularMemoryOutputFiles, pathnameWithoutBasePath } from '../utils';
 
-const COMPONENT_REGEX = /%COMP%/g;
-
 export function createAngularAssetsMiddleware(
   server: ViteDevServer,
   assets: Map<string, string>,
@@ -63,6 +61,12 @@ export function createAngularAssetsMiddleware(
       return;
     }
 
+    // Support HTTP HEAD requests for the virtual output files from the Angular build
+    if (req.method === 'HEAD' && outputFiles.get(pathname)?.servable) {
+      // While a GET will also generate content, the rest of the response is equivalent
+      req.method = 'GET';
+    }
+
     // Resource files are handled directly.
     // Global stylesheets (CSS files) are currently considered resources to workaround
     // dev server sourcemap issues with stylesheets.
@@ -84,12 +88,13 @@ export function createAngularAssetsMiddleware(
             // Shim the stylesheet if a component ID is provided
             if (componentId.length > 0) {
               // Validate component ID
-              if (/[_.-A-Za-z0-9]+-c\d{9}$/.test(componentId)) {
+              if (/^[_.\-\p{Letter}\d]+-c\d{9}$/u.test(componentId)) {
                 loadEsmModule<typeof import('@angular/compiler')>('@angular/compiler')
                   .then((compilerModule) => {
-                    const encapsulatedData = compilerModule
-                      .encapsulateStyle(new TextDecoder().decode(data))
-                      .replaceAll(COMPONENT_REGEX, componentId);
+                    const encapsulatedData = compilerModule.encapsulateStyle(
+                      new TextDecoder().decode(data),
+                      componentId,
+                    );
 
                     res.setHeader('Content-Type', 'text/css');
                     res.setHeader('Cache-Control', 'no-cache');

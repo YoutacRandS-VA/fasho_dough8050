@@ -7,7 +7,7 @@
  */
 
 import assert from 'node:assert';
-import Piscina from 'piscina';
+import { WorkerPool } from '../../utils/worker-pool';
 import { BuildOutputFile, BuildOutputFileType } from './bundler-context';
 import { createOutputFile } from './utils';
 
@@ -33,7 +33,7 @@ export interface I18nInlinerOptions {
  * localize function (`$localize`).
  */
 export class I18nInliner {
-  #workerPool: Piscina;
+  #workerPool: WorkerPool;
   readonly #localizeFiles: ReadonlyMap<string, Blob>;
   readonly #unmodifiedFiles: Array<BuildOutputFile>;
   readonly #fileToType = new Map<string, BuildOutputFileType>();
@@ -44,7 +44,8 @@ export class I18nInliner {
     const files = new Map<string, Blob>();
     const pendingMaps = [];
     for (const file of options.outputFiles) {
-      if (file.type === BuildOutputFileType.Root) {
+      if (file.type === BuildOutputFileType.Root || file.type === BuildOutputFileType.ServerRoot) {
+        // Skip also the server entry-point.
         // Skip stats and similar files.
         continue;
       }
@@ -88,7 +89,7 @@ export class I18nInliner {
 
     this.#localizeFiles = files;
 
-    this.#workerPool = new Piscina({
+    this.#workerPool = new WorkerPool({
       filename: require.resolve('./i18n-inliner-worker'),
       maxThreads,
       // Extract options to ensure only the named options are serialized and sent to the worker
@@ -97,7 +98,6 @@ export class I18nInliner {
         shouldOptimize: options.shouldOptimize,
         files,
       },
-      recordTiming: false,
     });
   }
 
