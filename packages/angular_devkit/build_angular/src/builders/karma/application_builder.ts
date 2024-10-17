@@ -8,6 +8,7 @@
 
 import { BuildOutputFileType } from '@angular/build';
 import {
+  ApplicationBuilderInternalOptions,
   ResultFile,
   ResultKind,
   buildApplicationInternal,
@@ -19,18 +20,93 @@ import glob from 'fast-glob';
 import * as fs from 'fs/promises';
 import type { Config, ConfigOptions, InlinePluginDef } from 'karma';
 import * as path from 'path';
-import { Observable, catchError, defaultIfEmpty, from, of, switchMap } from 'rxjs';
+import { Observable, Subscriber, catchError, defaultIfEmpty, from, of, switchMap } from 'rxjs';
 import { Configuration } from 'webpack';
 import { ExecutionTransformer } from '../../transforms';
 import { OutputHashing } from '../browser-esbuild/schema';
 import { findTests } from './find-tests';
 import { Schema as KarmaBuilderOptions } from './schema';
 
+interface BuildOptions extends ApplicationBuilderInternalOptions {
+  // We know that it's always a string since we set it.
+  outputPath: string;
+}
+
 class ApplicationBuildError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'ApplicationBuildError';
   }
+}
+
+function injectKarmaReporter(
+  context: BuilderContext,
+  buildOptions: BuildOptions,
+  karmaConfig: Config & ConfigOptions,
+  subscriber: Subscriber<BuilderOutput>,
+) {
+  const reporterName = 'angular-progress-notifier';
+
+  interface RunCompleteInfo {
+    exitCode: number;
+  }
+
+  interface KarmaEmitter {
+    refreshFiles(): void;
+  }
+
+  class ProgressNotifierReporter {
+    static $inject = ['emitter'];
+
+    constructor(private readonly emitter: KarmaEmitter) {
+      this.startWatchingBuild();
+    }
+
+    private startWatchingBuild() {
+      void (async () => {
+        for await (const buildOutput of buildApplicationInternal(
+          {
+            ...buildOptions,
+            watch: true,
+          },
+          context,
+        )) {
+          if (buildOutput.kind === ResultKind.Failure) {
+            subscriber.next({ success: false, message: 'Build failed' });
+          } else if (
+            buildOutput.kind === ResultKind.Incremental ||
+            buildOutput.kind === ResultKind.Full
+          ) {
+            await writeTestFiles(buildOutput.files, buildOptions.outputPath);
+            this.emitter.refreshFiles();
+          }
+        }
+      })();
+    }
+
+    onRunComplete = function (_browsers: unknown, results: RunCompleteInfo) {
+      if (results.exitCode === 0) {
+        subscriber.next({ success: true });
+      } else {
+        subscriber.next({ success: false });
+      }
+    };
+  }
+
+  karmaConfig.reporters ??= [];
+  karmaConfig.reporters.push(reporterName);
+
+  karmaConfig.plugins ??= [];
+  karmaConfig.plugins.push({
+    [`reporter:${reporterName}`]: [
+      'factory',
+      Object.assign(
+        (...args: ConstructorParameters<typeof ProgressNotifierReporter>) =>
+          new ProgressNotifierReporter(...args),
+        ProgressNotifierReporter,
+      ),
+    ],
+  });
 }
 
 export function execute(
@@ -45,8 +121,12 @@ export function execute(
 ): Observable<BuilderOutput> {
   return from(initializeApplication(options, context, karmaOptions, transforms)).pipe(
     switchMap(
-      ([karma, karmaConfig]) =>
+      ([karma, karmaConfig, buildOptions]) =>
         new Observable<BuilderOutput>((subscriber) => {
+          if (options.watch) {
+            injectKarmaReporter(context, buildOptions, karmaConfig, subscriber);
+          }
+
           // Complete the observable once the Karma server returns.
           const karmaServer = new karma.Server(karmaConfig as Config, (exitCode) => {
             subscriber.next({ success: exitCode === 0 });
@@ -85,11 +165,19 @@ async function getProjectSourceRoot(context: BuilderContext): Promise<string> {
   return path.join(context.workspaceRoot, sourceRoot);
 }
 
+function normalizePolyfills(polyfills: string | string[] | undefined): string[] {
+  if (typeof polyfills === 'string') {
+    return [polyfills];
+  }
+
+  return polyfills ?? [];
+}
+
 async function collectEntrypoints(
   options: KarmaBuilderOptions,
   context: BuilderContext,
   projectSourceRoot: string,
-): Promise<[Set<string>, string[]]> {
+): Promise<Set<string>> {
   // Glob for files to test.
   const testFiles = await findTests(
     options.include ?? [],
@@ -98,17 +186,7 @@ async function collectEntrypoints(
     projectSourceRoot,
   );
 
-  const entryPoints = new Set([
-    ...testFiles,
-    '@angular-devkit/build-angular/src/builders/karma/init_test_bed.js',
-  ]);
-  // Extract `zone.js/testing` to a separate entry point because it needs to be loaded after Jasmine.
-  const [polyfills, hasZoneTesting] = extractZoneTesting(options.polyfills);
-  if (hasZoneTesting) {
-    entryPoints.add('zone.js/testing');
-  }
-
-  return [entryPoints, polyfills];
+  return new Set(testFiles);
 }
 
 async function initializeApplication(
@@ -119,23 +197,29 @@ async function initializeApplication(
     webpackConfiguration?: ExecutionTransformer<Configuration>;
     karmaOptions?: (options: ConfigOptions) => ConfigOptions;
   } = {},
-): Promise<[typeof import('karma'), Config & ConfigOptions]> {
+): Promise<[typeof import('karma'), Config & ConfigOptions, BuildOptions]> {
   if (transforms.webpackConfiguration) {
     context.logger.warn(
       `This build is using the application builder but transforms.webpackConfiguration was provided. The transform will be ignored.`,
     );
   }
 
-  const testDir = path.join(context.workspaceRoot, 'dist/test-out', randomUUID());
+  const outputPath = path.join(context.workspaceRoot, 'dist/test-out', randomUUID());
   const projectSourceRoot = await getProjectSourceRoot(context);
 
-  const [karma, [entryPoints, polyfills]] = await Promise.all([
+  const [karma, entryPoints] = await Promise.all([
     import('karma'),
     collectEntrypoints(options, context, projectSourceRoot),
-    fs.rm(testDir, { recursive: true, force: true }),
+    fs.rm(outputPath, { recursive: true, force: true }),
   ]);
 
-  const outputPath = testDir;
+  let mainName = 'init_test_bed';
+  if (options.main) {
+    entryPoints.add(options.main);
+    mainName = path.basename(options.main, path.extname(options.main));
+  } else {
+    entryPoints.add('@angular-devkit/build-angular/src/builders/karma/init_test_bed.js');
+  }
 
   const instrumentForCoverage = options.codeCoverage
     ? createInstrumentationFilter(
@@ -144,30 +228,27 @@ async function initializeApplication(
       )
     : undefined;
 
+  const buildOptions: BuildOptions = {
+    entryPoints,
+    tsConfig: options.tsConfig,
+    outputPath,
+    aot: false,
+    index: false,
+    outputHashing: OutputHashing.None,
+    optimization: false,
+    sourceMap: {
+      scripts: true,
+      styles: true,
+      vendor: true,
+    },
+    instrumentForCoverage,
+    styles: options.styles,
+    polyfills: normalizePolyfills(options.polyfills),
+    webWorkerTsConfig: options.webWorkerTsConfig,
+  };
+
   // Build tests with `application` builder, using test files as entry points.
-  const buildOutput = await first(
-    buildApplicationInternal(
-      {
-        entryPoints,
-        tsConfig: options.tsConfig,
-        outputPath,
-        aot: false,
-        index: false,
-        outputHashing: OutputHashing.None,
-        optimization: false,
-        sourceMap: {
-          scripts: true,
-          styles: true,
-          vendor: true,
-        },
-        instrumentForCoverage,
-        styles: options.styles,
-        polyfills,
-        webWorkerTsConfig: options.webWorkerTsConfig,
-      },
-      context,
-    ),
-  );
+  const buildOutput = await first(buildApplicationInternal(buildOptions, context));
   if (buildOutput.kind === ResultKind.Failure) {
     throw new ApplicationBuildError('Build failed');
   } else if (buildOutput.kind !== ResultKind.Full) {
@@ -177,25 +258,33 @@ async function initializeApplication(
   }
 
   // Write test files
-  await writeTestFiles(buildOutput.files, testDir);
+  await writeTestFiles(buildOutput.files, buildOptions.outputPath);
 
   karmaOptions.files ??= [];
   karmaOptions.files.push(
     // Serve polyfills first.
-    { pattern: `${testDir}/polyfills.js`, type: 'module' },
-    // Allow loading of chunk-* files but don't include them all on load.
-    { pattern: `${testDir}/chunk-*.js`, type: 'module', included: false },
-    // Allow loading of worker-* files but don't include them all on load.
-    { pattern: `${testDir}/worker-*.js`, type: 'module', included: false },
-    // `zone.js/testing`, served but not included on page load.
-    { pattern: `${testDir}/testing.js`, type: 'module', included: false },
+    { pattern: `${outputPath}/polyfills.js`, type: 'module' },
+    // Serve global setup script.
+    { pattern: `${outputPath}/${mainName}.js`, type: 'module' },
+    // Serve all source maps.
+    { pattern: `${outputPath}/*.map`, included: false },
+  );
+
+  if (hasChunkOrWorkerFiles(buildOutput.files)) {
+    karmaOptions.files.push(
+      // Allow loading of chunk-* files but don't include them all on load.
+      { pattern: `${outputPath}/{chunk,worker}-*.js`, type: 'module', included: false },
+    );
+  }
+
+  karmaOptions.files.push(
     // Serve remaining JS on page load, these are the test entrypoints.
-    { pattern: `${testDir}/*.js`, type: 'module' },
+    { pattern: `${outputPath}/*.js`, type: 'module' },
   );
 
   if (options.styles?.length) {
     // Serve CSS outputs on page load, these are the global styles.
-    karmaOptions.files.push({ pattern: `${testDir}/*.css`, type: 'css' });
+    karmaOptions.files.push({ pattern: `${outputPath}/*.css`, type: 'css' });
   }
 
   const parsedKarmaConfig: Config & ConfigOptions = await karma.config.parseConfig(
@@ -236,7 +325,13 @@ async function initializeApplication(
     parsedKarmaConfig.reporters = (parsedKarmaConfig.reporters ?? []).concat(['coverage']);
   }
 
-  return [karma, parsedKarmaConfig];
+  return [karma, parsedKarmaConfig, buildOptions];
+}
+
+function hasChunkOrWorkerFiles(files: Record<string, unknown>): boolean {
+  return Object.keys(files).some((filename) => {
+    return /(?:^|\/)(?:worker|chunk)[^/]+\.js$/.test(filename);
+  });
 }
 
 export async function writeTestFiles(files: Record<string, ResultFile>, testDir: string) {
@@ -264,22 +359,6 @@ export async function writeTestFiles(files: Record<string, ResultFile>, testDir:
       await fs.copyFile(file.inputPath, fullFilePath, fs.constants.COPYFILE_FICLONE);
     }
   });
-}
-
-function extractZoneTesting(
-  polyfills: readonly string[] | string | undefined,
-): [polyfills: string[], hasZoneTesting: boolean] {
-  if (typeof polyfills === 'string') {
-    polyfills = [polyfills];
-  }
-  polyfills ??= [];
-
-  const polyfillsWithoutZoneTesting = polyfills.filter(
-    (polyfill) => polyfill !== 'zone.js/testing',
-  );
-  const hasZoneTesting = polyfills.length !== polyfillsWithoutZoneTesting.length;
-
-  return [polyfillsWithoutZoneTesting, hasZoneTesting];
 }
 
 /** Returns the first item yielded by the given generator and cancels the execution. */

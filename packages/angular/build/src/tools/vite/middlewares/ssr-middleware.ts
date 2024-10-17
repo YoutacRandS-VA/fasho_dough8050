@@ -8,13 +8,15 @@
 
 import type {
   AngularAppEngine as SSRAngularAppEngine,
-  createRequestHandler,
   ɵgetOrCreateAngularServerApp as getOrCreateAngularServerApp,
 } from '@angular/ssr';
-import type { createNodeRequestHandler } from '@angular/ssr/node';
 import type { ServerResponse } from 'node:http';
 import type { Connect, ViteDevServer } from 'vite';
 import { loadEsmModule } from '../../../utils/load-esm';
+import {
+  isSsrNodeRequestHandler,
+  isSsrRequestHandler,
+} from '../../../utils/server-rendering/utils';
 
 export function createAngularSsrInternalMiddleware(
   server: ViteDevServer,
@@ -32,6 +34,9 @@ export function createAngularSsrInternalMiddleware(
     }
 
     (async () => {
+      // Load the compiler because `@angular/ssr/node` depends on `@angular/` packages,
+      // which must be processed by the runtime linker, even if they are not used.
+      await loadEsmModule('@angular/compiler');
       const { writeResponseToNodeResponse, createWebRequestFromNodeRequest } =
         await loadEsmModule<typeof import('@angular/ssr/node')>('@angular/ssr/node');
 
@@ -74,6 +79,10 @@ export async function createAngularSsrExternalMiddleware(
     | ReturnType<typeof createAngularSsrInternalMiddleware>
     | undefined;
 
+  // Load the compiler because `@angular/ssr/node` depends on `@angular/` packages,
+  // which must be processed by the runtime linker, even if they are not used.
+  await loadEsmModule('@angular/compiler');
+
   const { createWebRequestFromNodeRequest, writeResponseToNodeResponse } =
     await loadEsmModule<typeof import('@angular/ssr/node')>('@angular/ssr/node');
 
@@ -83,20 +92,18 @@ export async function createAngularSsrExternalMiddleware(
     next: Connect.NextFunction,
   ) {
     (async () => {
-      const { default: handler, AngularAppEngine } = (await server.ssrLoadModule(
-        './server.mjs',
-      )) as {
-        default?: unknown;
+      const { reqHandler, AngularAppEngine } = (await server.ssrLoadModule('./server.mjs')) as {
+        reqHandler?: unknown;
         AngularAppEngine: typeof SSRAngularAppEngine;
       };
-
-      if (!isSsrNodeRequestHandler(handler) && !isSsrRequestHandler(handler)) {
+      if (!isSsrNodeRequestHandler(reqHandler) && !isSsrRequestHandler(reqHandler)) {
         if (!fallbackWarningShown) {
           // eslint-disable-next-line no-console
           console.warn(
-            `The default export in 'server.ts' does not provide a Node.js request handler. ` +
+            `The 'reqHandler' export in 'server.ts' is either undefined or does not provide a recognized request handler. ` +
               'Using the internal SSR middleware instead.',
           );
+
           fallbackWarningShown = true;
         }
 
@@ -121,10 +128,10 @@ export async function createAngularSsrExternalMiddleware(
       }
 
       // Forward the request to the middleware in server.ts
-      if (isSsrNodeRequestHandler(handler)) {
-        await handler(req, res, next);
+      if (isSsrNodeRequestHandler(reqHandler)) {
+        await reqHandler(req, res, next);
       } else {
-        const webRes = await handler(createWebRequestFromNodeRequest(req));
+        const webRes = await reqHandler(createWebRequestFromNodeRequest(req));
         if (!webRes) {
           next();
 
@@ -135,14 +142,4 @@ export async function createAngularSsrExternalMiddleware(
       }
     })().catch(next);
   };
-}
-
-function isSsrNodeRequestHandler(
-  value: unknown,
-): value is ReturnType<typeof createNodeRequestHandler> {
-  return typeof value === 'function' && '__ng_node_request_handler__' in value;
-}
-
-function isSsrRequestHandler(value: unknown): value is ReturnType<typeof createRequestHandler> {
-  return typeof value === 'function' && '__ng_request_handler__' in value;
 }

@@ -125,6 +125,34 @@
             "type": "string"
           },
           "default": []
+        },
+        "sass": {
+          "description": "Options to pass to the sass preprocessor.",
+          "type": "object",
+          "properties": {
+            "fatalDeprecations": {
+              "description": "A set of deprecations to treat as fatal. If a deprecation warning of any provided type is encountered during compilation, the compiler will error instead. If a Version is provided, then all deprecations that were active in that compiler version will be treated as fatal.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "silenceDeprecations": {
+              "description": " A set of active deprecations to ignore. If a deprecation warning of any provided type is encountered during compilation, the compiler will ignore it instead.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "futureDeprecations": {
+              "description": "A set of future deprecations to opt into early. Future deprecations passed here will be treated as active by the compiler, emitting warnings as necessary.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -518,6 +546,11 @@
             "entry": {
               "type": "string",
               "description": "The server entry-point that when executed will spawn the web server."
+            },
+            "experimentalPlatform": {
+              "description": "Specifies the platform for which the server bundle is generated. This affects the APIs and modules available in the server-side code. \n\n- `node`:  (Default) Generates a bundle optimized for Node.js environments. \n- `neutral`: Generates a platform-neutral bundle suitable for environments like edge workers, and other serverless platforms. This option avoids using Node.js-specific APIs, making the bundle more portable. \n\nPlease note that this feature does not provide polyfills for Node.js modules. Additionally, it is experimental, and the schematics may undergo changes in future versions.",
+              "default": "node",
+              "enum": ["node", "neutral"]
             }
           },
           "additionalProperties": false

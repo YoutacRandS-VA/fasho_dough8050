@@ -1,3 +1,157 @@
+<a name="19.0.0-next.11"></a>
+
+# 19.0.0-next.11 (2024-10-16)
+
+### @schematics/angular
+
+| Commit                                                                                              | Type | Description                                                         |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------------------- |
+| [755f3a07f](https://github.com/angular/angular-cli/commit/755f3a07f5fe485c1ed8c0c6060d6d5c799c085c) | feat | add option to setup new workspace or application as zoneless mode   |
+| [fcf7443d6](https://github.com/angular/angular-cli/commit/fcf7443d626d1f3e828ebfad464598f7b9ddef12) | fix  | explicitly set standalone:false                                     |
+| [a68e832ae](https://github.com/angular/angular-cli/commit/a68e832aefa0767461e43e3b824f3ef773b02038) | fix  | update browserslist config to include last 2 Android major versions |
+
+### @angular/build
+
+| Commit                                                                                              | Type | Description                                                         |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------------------- |
+| [b6951f448](https://github.com/angular/angular-cli/commit/b6951f4482418f65e4bd1c15d5f7f051c91d59db) | feat | add `sass` to `stylePreprocessorOptions` in application builder     |
+| [816e3cb86](https://github.com/angular/angular-cli/commit/816e3cb868961c57a68783601b919370076c41dc) | feat | enable component stylesheet hot replacement by default              |
+| [7d883a152](https://github.com/angular/angular-cli/commit/7d883a152e978112245a98f2f737764caa76ec0f) | feat | introduce `ssr.experimentalPlatform` option                         |
+| [c48d6947e](https://github.com/angular/angular-cli/commit/c48d6947ed17eab19822a97492e3686bcf059494) | feat | set development/production condition                                |
+| [13b65dfe1](https://github.com/angular/angular-cli/commit/13b65dfe191ca18a577421019c9a9e285d5c95a3) | fix  | allow direct bundling of TSX files with application builder         |
+| [5f473affc](https://github.com/angular/angular-cli/commit/5f473affcf001888082bf4adc51481c5afca81e0) | fix  | avoid race condition in sass importer                               |
+| [af52fb49b](https://github.com/angular/angular-cli/commit/af52fb49bdd913af8af9bfbe36be279fce70de39) | fix  | synchronize import/export conditions between bundler and TypeScript |
+| [bfa8fec9b](https://github.com/angular/angular-cli/commit/bfa8fec9b17d421925a684e2b642dee70165a879) | fix  | use named export `reqHandler` for server.ts request handling        |
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="18.2.9"></a>
+
+# 18.2.9 (2024-10-16)
+
+### @schematics/angular
+
+| Commit                                                                                              | Type | Description                                                         |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------------------- |
+| [237f7c5d0](https://github.com/angular/angular-cli/commit/237f7c5d0355e0a90b23156d3aa97f4328c869e7) | fix  | update browserslist config to include last 2 Android major versions |
+
+### @angular/build
+
+| Commit                                                                                              | Type | Description                                                 |
+| --------------------------------------------------------------------------------------------------- | ---- | ----------------------------------------------------------- |
+| [d749ba6a3](https://github.com/angular/angular-cli/commit/d749ba6a3c3dd7a90317bd9b46e858a842f27696) | fix  | allow direct bundling of TSX files with application builder |
+| [b91c82d89](https://github.com/angular/angular-cli/commit/b91c82d8997c0009ed4bbf5e9cd9c82cb1f7f755) | fix  | avoid race condition in sass importer                       |
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="19.0.0-next.10"></a>
+
+# 19.0.0-next.10 (2024-10-09)
+
+## Breaking Changes
+
+### @schematics/angular
+
+- The app-shell schematic is no longer compatible with Webpack-based builders.
+
+### @schematics/angular
+
+| Commit                                                                                              | Type | Description                                                           |
+| --------------------------------------------------------------------------------------------------- | ---- | --------------------------------------------------------------------- |
+| [292a4b7c2](https://github.com/angular/angular-cli/commit/292a4b7c2f62828606c42258db524341f4a6391e) | feat | update app-shell and ssr schematics to adopt new Server Rendering API |
+| [6dbfc770b](https://github.com/angular/angular-cli/commit/6dbfc770b2d2f72dbc73e39e763f0773435825c6) | fix  | add validation for component and directive class name                 |
+| [7de93e593](https://github.com/angular/angular-cli/commit/7de93e593a9b6439b2f33d0c25c371e14a0e9e38) | fix  | include `index.csr.html` in resources asset group                     |
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type | Description       |
+| --------------------------------------------------------------------------------------------------- | ---- | ----------------- |
+| [ab6e19e1f](https://github.com/angular/angular-cli/commit/ab6e19e1f9a8781334821048522abe86b149c9c3) | fix  | handle main field |
+
+### @angular/build
+
+| Commit                                                                                              | Type | Description                                                                      |
+| --------------------------------------------------------------------------------------------------- | ---- | -------------------------------------------------------------------------------- |
+| [549c20a93](https://github.com/angular/angular-cli/commit/549c20a9396b33ae2e6708a8a9a7c77f0167b276) | fix  | `Ctrl + C` not terminating dev-server with SSR                                   |
+| [1d9db138f](https://github.com/angular/angular-cli/commit/1d9db138f34132f62fd008c9b8597489b08018e6) | fix  | always generate a new hash for optimized chunk                                   |
+| [7c50ba9e2](https://github.com/angular/angular-cli/commit/7c50ba9e2faca445c196c69e972ac313547dda54) | fix  | ensure `index.csr.html` is always generated when prerendering or SSR are enabled |
+| [1bb68ba68](https://github.com/angular/angular-cli/commit/1bb68ba6812236a135c1599031bf7e1b7e0d1d79) | fix  | move lmdb to optionalDependencies                                                |
+| [9233e5ef4](https://github.com/angular/angular-cli/commit/9233e5ef471e851a173827df7f74a581381c6373) | fix  | show error message when error stack is undefined                                 |
+| [6c618d495](https://github.com/angular/angular-cli/commit/6c618d495c54394eb2b87aee36ba5436c06557bd) | fix  | update logic to support both internal and external SSR middlewares               |
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="18.2.8"></a>
+
+# 18.2.8 (2024-10-09)
+
+### @schematics/angular
+
+| Commit                                                                                              | Type | Description                                           |
+| --------------------------------------------------------------------------------------------------- | ---- | ----------------------------------------------------- |
+| [b522002ff](https://github.com/angular/angular-cli/commit/b522002fff763cda2ae1c746efcb2638d0099184) | fix  | add validation for component and directive class name |
+| [dfd2d5c05](https://github.com/angular/angular-cli/commit/dfd2d5c0500777fa5aea91519f6657aed7f3b7d7) | fix  | include `index.csr.html` in resources asset group     |
+
+### @angular/build
+
+| Commit                                                                                              | Type | Description                                    |
+| --------------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------- |
+| [9445916f9](https://github.com/angular/angular-cli/commit/9445916f9b5b9da69623bf86735264d8a5f26fb3) | fix  | `Ctrl + C` not terminating dev-server with SSR |
+| [9b5cfaa8c](https://github.com/angular/angular-cli/commit/9b5cfaa8ce9d12bf450e7527d479ce7a879ea1b8) | fix  | always generate a new hash for optimized chunk |
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="19.0.0-next.9"></a>
+
+# 19.0.0-next.9 (2024-10-02)
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type | Description                       |
+| --------------------------------------------------------------------------------------------------- | ---- | --------------------------------- |
+| [0a4ef3026](https://github.com/angular/angular-cli/commit/0a4ef302635e4665ae9881746867dd80ca0d2dc7) | feat | karma-coverage w/ app builder     |
+| [dcbdca85c](https://github.com/angular/angular-cli/commit/dcbdca85c7fe1a7371b8f6662e0f68e24d56102e) | feat | karma+esbuild+watch               |
+| [9d7613db9](https://github.com/angular/angular-cli/commit/9d7613db9bf8b397d5896fcdf6c7b0efeaffa5d5) | fix  | zone.js/testing + karma + esbuild |
+
+### @angular/build
+
+| Commit                                                                                              | Type | Description                                                                                                |
+| --------------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------- |
+| [f63072668](https://github.com/angular/angular-cli/commit/f63072668e44254da78170445ac2417c7bc1aa18) | feat | utilize `ssr.entry` during prerendering to enable access to local API routes                               |
+| [ecfb2b261](https://github.com/angular/angular-cli/commit/ecfb2b261356946d5f4a653f90c0b78db4ef519c) | fix  | add few more SVG elements animateMotion, animateTransform, and feBlend etc. to valid self-closing elements |
+| [87a90afd4](https://github.com/angular/angular-cli/commit/87a90afd4600049b184b32f8f92a0634e25890c0) | fix  | incomplete string escaping or encoding                                                                     |
+| [c0b76e337](https://github.com/angular/angular-cli/commit/c0b76e3377e7f9ded023e5350b9a9ae90a7d31ee) | fix  | separate Vite cache by project                                                                             |
+
+### @angular/ssr
+
+| Commit                                                                                              | Type | Description                                                                           |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------------------------------------- |
+| [50df63196](https://github.com/angular/angular-cli/commit/50df631960550049e7d1779fd2c8fbbcf549b8ef) | fix  | improve handling of route mismatches between Angular server routes and Angular router |
+| [64c52521d](https://github.com/angular/angular-cli/commit/64c52521d052f850aa7ea1aaadfd8a9fcee9c387) | fix  | show error when multiple routes are set with `RenderMode.AppShell`                    |
+| [12ff37adb](https://github.com/angular/angular-cli/commit/12ff37adbed552fc0db97251c30c889ef00e50f3) | perf | cache generated inline CSS for HTML                                                   |
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="18.2.7"></a>
+
+# 18.2.7 (2024-10-02)
+
+### @schematics/angular
+
+| Commit                                                                                              | Type | Description                                    |
+| --------------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------- |
+| [3f98193d6](https://github.com/angular/angular-cli/commit/3f98193d6963464bd04b510c2d045938f1418ff3) | fix  | support single quote setting in JetBrains IDEs |
+
+### @angular/build
+
+| Commit                                                                                              | Type | Description                                                                                                |
+| --------------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------- |
+| [8274184e1](https://github.com/angular/angular-cli/commit/8274184e1c6fa43cc5101018b6fa86fd636a90ba) | fix  | add `animate` to valid self-closing elements                                                               |
+| [2648e811e](https://github.com/angular/angular-cli/commit/2648e811e7c71e8a68d1eb418d7dcdae42ebf9ff) | fix  | add few more SVG elements animateMotion, animateTransform, and feBlend etc. to valid self-closing elements |
+| [736e126e4](https://github.com/angular/angular-cli/commit/736e126e4836e1c3df32c0ab9ee40e58c16503c0) | fix  | separate Vite cache by project                                                                             |
+
+<!-- CHANGELOG SPLIT MARKER -->
+
 <a name="19.0.0-next.8"></a>
 
 # 19.0.0-next.8 (2024-09-26)

@@ -191,7 +191,7 @@ describe('Application Schematic', () => {
 
   it(`should create an application with SSR features when 'ssr=true'`, async () => {
     const options = { ...defaultOptions, ssr: true };
-    const filePath = '/projects/foo/server.ts';
+    const filePath = '/projects/foo/src/server.ts';
     expect(workspaceTree.exists(filePath)).toBeFalse();
     const tree = await schematicRunner.runSchematic('application', options, workspaceTree);
     expect(tree.exists(filePath)).toBeTrue();
@@ -200,7 +200,7 @@ describe('Application Schematic', () => {
   it(`should not create an application with SSR features when 'ssr=false'`, async () => {
     const options = { ...defaultOptions, ssr: false };
     const tree = await schematicRunner.runSchematic('application', options, workspaceTree);
-    expect(tree.exists('/projects/foo/server.ts')).toBeFalse();
+    expect(tree.exists('/projects/foo/src/server.ts')).toBeFalse();
   });
 
   describe(`update package.json`, () => {
@@ -697,6 +697,78 @@ describe('Application Schematic', () => {
           '@schematics/angular:pipe': { standalone: false },
         }),
       );
+    });
+
+    it('should add provideExperimentalZonelessChangeDetection() in app.module.ts when experimentalZoneless is true', async () => {
+      const tree = await schematicRunner.runSchematic(
+        'application',
+        {
+          ...defaultOptions,
+          experimentalZoneless: true,
+          standalone: false,
+        },
+        workspaceTree,
+      );
+      const path = '/projects/foo/src/app/app.module.ts';
+      const fileContent = tree.readContent(path);
+      expect(fileContent).toContain('provideExperimentalZonelessChangeDetection()');
+    });
+
+    it('should not add provideExperimentalZonelessChangeDetection() in app.module.ts when experimentalZoneless is false', async () => {
+      const tree = await schematicRunner.runSchematic(
+        'application',
+        {
+          ...defaultOptions,
+          experimentalZoneless: false,
+          standalone: false,
+        },
+        workspaceTree,
+      );
+      const path = '/projects/foo/src/app/app.module.ts';
+      const fileContent = tree.readContent(path);
+      expect(fileContent).not.toContain('provideExperimentalZonelessChangeDetection()');
+    });
+
+    it('should add provideExperimentalZonelessChangeDetection() when experimentalZoneless is true', async () => {
+      const tree = await schematicRunner.runSchematic(
+        'application',
+        {
+          ...defaultOptions,
+          experimentalZoneless: true,
+        },
+        workspaceTree,
+      );
+      const path = '/projects/foo/src/app/app.config.ts';
+      const fileContent = tree.readContent(path);
+      expect(fileContent).toContain('provideExperimentalZonelessChangeDetection()');
+    });
+
+    it('should not add provideExperimentalZonelessChangeDetection() when experimentalZoneless is false', async () => {
+      const tree = await schematicRunner.runSchematic(
+        'application',
+        {
+          ...defaultOptions,
+          experimentalZoneless: false,
+        },
+        workspaceTree,
+      );
+      const path = '/projects/foo/src/app/app.config.ts';
+      const fileContent = tree.readContent(path);
+      expect(fileContent).not.toContain('provideExperimentalZonelessChangeDetection()');
+    });
+
+    it('should not add provideZoneChangeDetection when experimentalZoneless is true', async () => {
+      const tree = await schematicRunner.runSchematic(
+        'application',
+        {
+          ...defaultOptions,
+          experimentalZoneless: true,
+        },
+        workspaceTree,
+      );
+      const path = '/projects/foo/src/app/app.config.ts';
+      const fileContent = tree.readContent(path);
+      expect(fileContent).not.toContain('provideZoneChangeDetection');
     });
   });
 });

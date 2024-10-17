@@ -27,6 +27,7 @@ import {
 import { urlJoin } from '../../utils/url';
 import {
   Schema as ApplicationBuilderOptions,
+  ExperimentalPlatform,
   I18NTranslation,
   OutputHashing,
   OutputMode,
@@ -264,10 +265,11 @@ export async function normalizeOptions(
   if (options.ssr === true) {
     ssrOptions = {};
   } else if (typeof options.ssr === 'object') {
-    const { entry } = options.ssr;
+    const { entry, experimentalPlatform = ExperimentalPlatform.Node } = options.ssr;
 
     ssrOptions = {
       entry: entry && path.join(workspaceRoot, entry),
+      platform: experimentalPlatform,
     };
   }
 
@@ -320,10 +322,16 @@ export async function normalizeOptions(
        * If SSR is activated, create a distinct entry file for the `index.html`.
        * This is necessary because numerous server/cloud providers automatically serve the `index.html` as a static file
        * if it exists (handling SSG).
+       *
        * For instance, accessing `foo.com/` would lead to `foo.com/index.html` being served instead of hitting the server.
+       *
+       * This approach can also be applied to service workers, where the `index.csr.html` is served instead of the prerendered `index.html`.
        */
       const indexBaseName = path.basename(options.index);
-      indexOutput = ssrOptions && indexBaseName === 'index.html' ? INDEX_HTML_CSR : indexBaseName;
+      indexOutput =
+        (ssrOptions || prerenderOptions) && indexBaseName === 'index.html'
+          ? INDEX_HTML_CSR
+          : indexBaseName;
     } else {
       indexOutput = options.index.output || 'index.html';
     }

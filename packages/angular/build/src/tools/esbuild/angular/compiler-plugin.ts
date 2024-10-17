@@ -8,6 +8,7 @@
 
 import type {
   BuildFailure,
+  Loader,
   Metafile,
   OnStartResult,
   OutputFile,
@@ -130,6 +131,7 @@ export function createCompilerPlugin(
       // Track incremental component stylesheet builds
       const stylesheetBundler = new ComponentStylesheetBundler(
         styleOptions,
+        styleOptions.inlineStyleLanguage,
         pluginOptions.incremental,
       );
       let sharedTSCompilationState: SharedTSCompilationState | undefined;
@@ -180,7 +182,7 @@ export function createCompilerPlugin(
           fileReplacements: pluginOptions.fileReplacements,
           modifiedFiles,
           sourceFileCache: pluginOptions.sourceFileCache,
-          async transformStylesheet(data, containingFile, stylesheetFile, order) {
+          async transformStylesheet(data, containingFile, stylesheetFile, order, className) {
             let stylesheetResult;
 
             // Stylesheet file only exists for external stylesheets
@@ -190,8 +192,8 @@ export function createCompilerPlugin(
               stylesheetResult = await stylesheetBundler.bundleInline(
                 data,
                 containingFile,
-                // Inline stylesheets from a template style element are always CSS
-                containingFile.endsWith('.html') ? 'css' : styleOptions.inlineStyleLanguage,
+                // Inline stylesheets from a template style element are always CSS; Otherwise, use default.
+                containingFile.endsWith('.html') ? 'css' : undefined,
                 // When external runtime styles are enabled, an identifier for the style that does not change
                 // based on the content is required to avoid emitted JS code changes. Any JS code changes will
                 // invalid the output and force a full page reload for HMR cases. The containing file and order
@@ -200,6 +202,7 @@ export function createCompilerPlugin(
                   ? createHash('sha-256')
                       .update(containingFile)
                       .update((order ?? 0).toString())
+                      .update(className ?? '')
                       .digest('hex')
                   : undefined,
               );
@@ -285,7 +288,12 @@ export function createCompilerPlugin(
           const initializationResult = await compilation.initialize(
             pluginOptions.tsconfig,
             hostOptions,
-            createCompilerOptionsTransformer(setupWarnings, pluginOptions, preserveSymlinks),
+            createCompilerOptionsTransformer(
+              setupWarnings,
+              pluginOptions,
+              preserveSymlinks,
+              build.initialOptions.conditions,
+            ),
           );
           shouldTsIgnoreJs = !initializationResult.compilerOptions.allowJs;
           // Isolated modules option ensures safe non-TypeScript transpilation.
@@ -455,9 +463,21 @@ export function createCompilerPlugin(
           typeScriptFileCache.set(request, contents);
         }
 
+        let loader: Loader;
+        if (useTypeScriptTranspilation || isJS) {
+          // TypeScript has transpiled to JS or is already JS
+          loader = 'js';
+        } else if (request.at(-1) === 'x') {
+          // TSX and TS have different syntax rules. Only set if input is a TSX file.
+          loader = 'tsx';
+        } else {
+          // Otherwise, directly bundle TS
+          loader = 'ts';
+        }
+
         return {
           contents,
-          loader: useTypeScriptTranspilation || isJS ? 'js' : 'ts',
+          loader,
         };
       });
 
@@ -490,7 +510,6 @@ export function createCompilerPlugin(
           build,
           stylesheetBundler,
           additionalResults,
-          styleOptions.inlineStyleLanguage,
           pluginOptions.loadResultCache,
         );
       }
@@ -572,6 +591,7 @@ function createCompilerOptionsTransformer(
   setupWarnings: PartialMessage[] | undefined,
   pluginOptions: CompilerPluginOptions,
   preserveSymlinks: boolean | undefined,
+  customConditions: string[] | undefined,
 ): Parameters<AngularCompilation['initialize']>[2] {
   return (compilerOptions) => {
     // target of 9 is ES2022 (using the number avoids an expensive import of typescript just for an enum)
@@ -629,6 +649,12 @@ function createCompilerOptionsTransformer(
         location: null,
         notes: [{ text: `The 'module' option will be set to 'ES2022' instead.` }],
       });
+    }
+
+    // Synchronize custom resolve conditions.
+    // Set if using the supported bundler resolution mode (bundler is the default in new projects)
+    if (compilerOptions.moduleResolution === 100 /* ModuleResolutionKind.Bundler */) {
+      compilerOptions.customConditions = customConditions;
     }
 
     return {
