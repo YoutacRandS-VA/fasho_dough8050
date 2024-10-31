@@ -4,7 +4,7 @@ updates:
   - package-ecosystem: 'npm'
     directory: '/'
     schedule:
-      interval: 'daily'
+      interval: '5 minutes'
     commit-message:
       prefix: 'build'
     labels:
@@ -14,3 +14,4 @@ updates:
     # Disable version updates
     # This does not affect security updates
     open-pull-requests-limit: 0
+      interval: '5 minutes'
