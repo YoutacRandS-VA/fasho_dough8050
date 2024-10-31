@@ -30,7 +30,6 @@ import {
 import { JavaScriptTransformer } from '../javascript-transformer';
 import { LoadResultCache, createCachedLoad } from '../load-result-cache';
 import { logCumulativeDurations, profileAsync, resetCumulativeDurations } from '../profiling';
-import { BundleStylesheetOptions } from '../stylesheets/bundle-options';
 import { SharedTSCompilationState, getSharedCompilationState } from './compilation-state';
 import { ComponentStylesheetBundler } from './component-stylesheets';
 import { FileReferenceTracker } from './file-reference-tracker';
@@ -57,7 +56,7 @@ export interface CompilerPluginOptions {
 // eslint-disable-next-line max-lines-per-function
 export function createCompilerPlugin(
   pluginOptions: CompilerPluginOptions,
-  styleOptions: BundleStylesheetOptions & { inlineStyleLanguage: string },
+  stylesheetBundler: ComponentStylesheetBundler,
 ): Plugin {
   return {
     name: 'angular-compiler',
@@ -128,12 +127,6 @@ export function createCompilerPlugin(
       // Determines if transpilation should be handle by TypeScript or esbuild
       let useTypeScriptTranspilation = true;
 
-      // Track incremental component stylesheet builds
-      const stylesheetBundler = new ComponentStylesheetBundler(
-        styleOptions,
-        styleOptions.inlineStyleLanguage,
-        pluginOptions.incremental,
-      );
       let sharedTSCompilationState: SharedTSCompilationState | undefined;
 
       // To fully invalidate files, track resource referenced files and their referencing source
@@ -157,7 +150,6 @@ export function createCompilerPlugin(
         // Angular compiler which does not have direct knowledge of transitive resource
         // dependencies or web worker processing.
         let modifiedFiles;
-        let invalidatedStylesheetEntries;
         if (
           pluginOptions.sourceFileCache?.modifiedFiles.size &&
           referencedFileTracker &&
@@ -166,7 +158,11 @@ export function createCompilerPlugin(
           // TODO: Differentiate between changed input files and stale output files
           modifiedFiles = referencedFileTracker.update(pluginOptions.sourceFileCache.modifiedFiles);
           pluginOptions.sourceFileCache.invalidate(modifiedFiles);
-          invalidatedStylesheetEntries = stylesheetBundler.invalidate(modifiedFiles);
+          // External runtime styles are invalidated and rebuilt at the beginning of a rebuild to avoid
+          // the need to execute the application bundler for component style only changes.
+          if (!pluginOptions.externalRuntimeStyles) {
+            stylesheetBundler.invalidate(modifiedFiles);
+          }
         }
 
         if (
@@ -208,12 +204,14 @@ export function createCompilerPlugin(
               );
             }
 
-            const { contents, outputFiles, metafile, referencedFiles, errors, warnings } =
-              stylesheetResult;
-            if (errors) {
-              (result.errors ??= []).push(...errors);
+            (result.warnings ??= []).push(...stylesheetResult.warnings);
+            if (stylesheetResult.errors) {
+              (result.errors ??= []).push(...stylesheetResult.errors);
+
+              return '';
             }
-            (result.warnings ??= []).push(...warnings);
+
+            const { contents, outputFiles, metafile, referencedFiles } = stylesheetResult;
             additionalResults.set(stylesheetFile ?? containingFile, {
               outputFiles,
               metafile,
@@ -338,19 +336,6 @@ export function createCompilerPlugin(
               result,
               additionalResults,
             );
-          }
-          // Process any updated stylesheets
-          if (invalidatedStylesheetEntries) {
-            for (const stylesheetFile of invalidatedStylesheetEntries) {
-              // externalId is already linked in the bundler context so only enabling is required here
-              await bundleExternalStylesheet(
-                stylesheetBundler,
-                stylesheetFile,
-                true,
-                result,
-                additionalResults,
-              );
-            }
           }
         }
 
@@ -539,7 +524,6 @@ export function createCompilerPlugin(
 
       build.onDispose(() => {
         sharedTSCompilationState?.dispose();
-        void stylesheetBundler.dispose();
         void compilation.close?.();
         void cacheStore?.close();
       });
@@ -573,18 +557,23 @@ async function bundleExternalStylesheet(
     { outputFiles?: OutputFile[]; metafile?: Metafile; errors?: PartialMessage[] }
   >,
 ) {
-  const { outputFiles, metafile, errors, warnings } = await stylesheetBundler.bundleFile(
-    stylesheetFile,
-    externalId,
-  );
-  if (errors) {
-    (result.errors ??= []).push(...errors);
+  const styleResult = await stylesheetBundler.bundleFile(stylesheetFile, externalId);
+
+  (result.warnings ??= []).push(...styleResult.warnings);
+  if (styleResult.errors) {
+    (result.errors ??= []).push(...styleResult.errors);
+  } else {
+    const { outputFiles, metafile } = styleResult;
+    // Clear inputs to prevent triggering a rebuild of the application code for component
+    // stylesheet file only changes when the dev server enables the internal-only external
+    // stylesheet option. This does not affect builds since only the dev server can enable
+    // the internal option.
+    metafile.inputs = {};
+    additionalResults.set(stylesheetFile, {
+      outputFiles,
+      metafile,
+    });
   }
-  (result.warnings ??= []).push(...warnings);
-  additionalResults.set(stylesheetFile, {
-    outputFiles,
-    metafile,
-  });
 }
 
 function createCompilerOptionsTransformer(

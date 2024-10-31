@@ -8,6 +8,7 @@
 
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { IMPORT_EXEC_ARGV } from '../../utils/server-rendering/esm-in-memory-loader/utils';
 import { WorkerPool } from '../../utils/worker-pool';
 import { Cache } from './cache';
 
@@ -58,6 +59,8 @@ export class JavaScriptTransformer {
     this.#workerPool ??= new WorkerPool({
       filename: require.resolve('./javascript-transformer-worker'),
       maxThreads: this.maxThreads,
+      // Prevent passing `--import` (loader-hooks) from parent to child worker.
+      execArgv: process.execArgv.filter((v) => v !== IMPORT_EXEC_ARGV),
     });
 
     return this.#workerPool;
